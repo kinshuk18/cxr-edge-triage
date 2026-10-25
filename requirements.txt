@@ -1,0 +1,2 @@
+# CPU-first all-in-one development requirements. No pretrained weights are downloaded.
+-r requirements.dev.txt

@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1
+FROM python:3.11-slim AS build
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1
+WORKDIR /build
+COPY requirements.api.txt ./requirements.api.txt
+RUN python -m pip install --no-cache-dir --prefix=/install -r requirements.api.txt
+
+# FLAG: distroless Python interpreter/site-package search paths are image-version-specific.
+# Verify the actual image with:
+# docker run --rm rad-api:local -c "import sys,fastapi,asyncpg,PIL,pydicom; print(sys.executable, sys.path)"
+FROM gcr.io/distroless/python3-debian12:nonroot AS runtime
+WORKDIR /app
+COPY --from=build /install /usr/local
+COPY app /app/app
+COPY migrations /app/migrations
+COPY alembic.ini /app/alembic.ini
+COPY schemas /app/schemas
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/app:/usr/local/lib/python3.11/site-packages:/usr/local/lib/python3.11/dist-packages
+EXPOSE 8000
+USER nonroot:nonroot
+CMD ["-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

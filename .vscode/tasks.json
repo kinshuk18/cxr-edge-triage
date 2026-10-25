@@ -1,0 +1,58 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Python: compileall",
+      "type": "shell",
+      "command": "python -m compileall -q app worker",
+      "problemMatcher": []
+    },
+    {
+      "label": "Python: pytest",
+      "type": "shell",
+      "command": "python -m pytest -q",
+      "group": {"kind": "test", "isDefault": true},
+      "dependsOn": "Python: compileall",
+      "problemMatcher": []
+    },
+    {
+      "label": "Python: black",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "black", "--check", "app", "worker", "tests", "scripts"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Python: flake8",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "flake8", "app", "worker", "tests", "scripts"],
+      "dependsOn": "Python: black",
+      "problemMatcher": []
+    },
+    {
+      "label": "Python: lint",
+      "dependsOn": ["Python: black", "Python: flake8"],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: compose up",
+      "type": "shell",
+      "command": "docker compose up --build -d",
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: compose down",
+      "type": "shell",
+      "command": "docker compose down",
+      "problemMatcher": []
+    },
+    {
+      "label": "Smoke: upload synthetic DICOM",
+      "type": "shell",
+      "command": "python scripts/smoke_test.py",
+      "problemMatcher": []
+    }
+  ]
+}

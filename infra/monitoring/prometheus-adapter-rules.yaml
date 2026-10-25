@@ -1,0 +1,12 @@
+# Merge this rule into the installed prometheus-adapter configuration.
+# KEDA's RabbitMQ scaler is an alternative when the adapter is not already operated centrally.
+# Queue-depth metric series must carry the `queue` label exactly as used in HPA selectors.
+externalRules:
+  - seriesQuery: 'rabbitmq_queue_messages{queue!=""}'
+    resources:
+      overrides:
+        namespace: {resource: "namespace"}
+    name:
+      matches: "^(.*)$"
+      as: "rabbitmq_queue_messages"
+    metricsQuery: 'max(<<.Series>>{<<.LabelMatchers>>}) by (queue)'

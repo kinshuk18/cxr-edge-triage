@@ -1,0 +1,35 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+# Local secrets and generated patient/smoke-test data
+.env
+.env.*
+!.env.example
+devkeys/
+sample-data/
+*.dcm
+*.dicom
+*.nii
+*.nii.gz
+models/*.pt
+# Build and editor noise
+build/
+dist/
+*.egg-info/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+smoke_overlay.png

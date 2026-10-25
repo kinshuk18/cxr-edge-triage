@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-python.black-formatter",
+    "ms-azuretools.vscode-docker",
+    "redhat.vscode-yaml",
+    "GitHub.copilot",
+    "GitHub.copilot-chat"
+  ]
+}

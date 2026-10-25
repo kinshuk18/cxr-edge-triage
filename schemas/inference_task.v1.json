@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/inference_task.v1.json",
+  "title": "InferenceTask.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "message_id", "study_id", "tenant_id", "submitted_at", "priority", "image", "meta", "inference", "output"],
+  "properties": {
+    "schema_version": {"const": "InferenceTask.v1"},
+    "message_id": {"type": "string", "format": "uuid"},
+    "study_id": {"type": "string", "format": "uuid"},
+    "tenant_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "submitted_at": {"type": "string", "format": "date-time"},
+    "priority": {"enum": ["stat", "routine"]},
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bucket", "key", "sha256", "format", "size_bytes"],
+      "properties": {
+        "bucket": {"type": "string", "minLength": 1, "maxLength": 128},
+        "key": {"type": "string", "minLength": 1, "maxLength": 1024},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "format": {"enum": ["dicom", "png", "jpeg"]},
+        "size_bytes": {"type": "integer", "minimum": 1, "maximum": 50331648}
+      }
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["modality", "manufacturer", "rows", "columns", "photometric_interpretation", "patient_age_years", "vendor_label"],
+      "properties": {
+        "modality": {"type": "string", "enum": ["CR", "DX", "unknown", "DX-rendered"]},
+        "manufacturer": {"type": "string", "maxLength": 64},
+        "rows": {"type": "integer", "minimum": 1, "maximum": 4500},
+        "columns": {"type": "integer", "minimum": 1, "maximum": 4500},
+        "photometric_interpretation": {"type": "string", "enum": ["MONOCHROME1", "MONOCHROME2", "UNKNOWN"]},
+        "patient_age_years": {"type": ["integer", "null"], "minimum": 0, "maximum": 120},
+        "vendor_label": {"enum": ["unknown", "ge", "siemens", "philips", "canon", "fujifilm", "carestream", "agfa", "hologic", "other"]}
+      }
+    },
+    "inference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_id", "model_version", "tasks", "explain"],
+      "properties": {
+        "model_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "model_version": {"type": "string", "minLength": 1, "maxLength": 64},
+        "tasks": {"type": "array", "minItems": 1, "maxItems": 16, "items": {"type": "string", "maxLength": 64}},
+        "explain": {"type": "boolean"}
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bucket", "prefix"],
+      "properties": {
+        "bucket": {"type": "string", "minLength": 1, "maxLength": 128},
+        "prefix": {"type": "string", "minLength": 1, "maxLength": 1024}
+      }
+    }
+  }
+}

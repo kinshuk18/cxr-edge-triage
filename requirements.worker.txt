@@ -1,0 +1,7 @@
+-r requirements.api.txt
+torch==2.4.1
+torchvision==0.19.1
+aio-pika==9.5.4
+redis==5.2.1
+albumentations==2.0.8
+jsonschema==4.23.0

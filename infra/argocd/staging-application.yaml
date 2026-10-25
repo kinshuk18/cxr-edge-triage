@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cxr-edge-triage-staging
+  namespace: argocd
+spec:
+  project: default
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+  source:
+    repoURL: https://github.com/kinshuk18/rad-infra.git
+    targetRevision: main
+    path: infra/overlays/staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cxr-edge-triage-staging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,112 @@
+name: CI
+
+# FLAG: Action tags below are released-looking stable tags but were not live-verified here.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install black==24.10.0 flake8==7.1.1
+      - run: python -m black --check app worker tests scripts
+      - run: python -m flake8 app worker tests scripts
+      - run: python -m compileall -q app worker
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install CPU PyTorch and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.4.1 torchvision==0.19.1
+          python -m pip install -r requirements.dev.txt
+      - run: python -m compileall -q app worker
+      - run: python -m pytest -q
+
+  image-matrix:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: rad-api
+            dockerfile: docker/Dockerfile.api
+          - image: rad-worker
+            dockerfile: docker/Dockerfile.worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build local image for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          tags: local/${{ matrix.image }}:${{ github.sha }}
+          load: true
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+      - name: Trivy HIGH/CRITICAL gate
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: local/${{ matrix.image }}:${{ github.sha }}
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Login to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push image after scan passes
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ghcr.io/kinshuk18/${{ matrix.image }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  gitops:
+    needs: [image-matrix]
+    if: false # Disabled by default: rad-infra is a separate repository. Configure its path and INFRA_REPO_TOKEN before enabling.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clone the separate GitOps repository
+        env:
+          INFRA_REPO_TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
+        run: |
+          test -n "$INFRA_REPO_TOKEN"
+          git clone "https://x-access-token:${INFRA_REPO_TOKEN}@github.com/kinshuk18/rad-infra.git" ../rad-infra
+      - name: Update image tag in GitOps repo
+        run: |
+          cd ../rad-infra
+          kustomize edit set image ghcr.io/kinshuk18/rad-api=ghcr.io/kinshuk18/rad-api:${GITHUB_SHA}
+          kustomize edit set image ghcr.io/kinshuk18/rad-worker=ghcr.io/kinshuk18/rad-worker:${GITHUB_SHA}
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "chore(gitops): deploy ${GITHUB_SHA}" || exit 0
+          git push

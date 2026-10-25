@@ -1,0 +1,15 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: clinical-api
+value: 100000
+globalDefault: false
+description: "Priority for the radiology ingestion API."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: ml-inference
+value: 50000
+globalDefault: false
+description: "Priority for inference workers."

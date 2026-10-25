@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "API (FastAPI)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--host", "127.0.0.1", "--port", "8000", "--reload"],
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Outbox relay",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "app.relay",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Worker supervisor",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "worker.main",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    }
+  ]
+}

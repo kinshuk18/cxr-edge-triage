@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cxr-edge-triage-prod
+  namespace: argocd
+spec:
+  project: default
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+  source:
+    repoURL: https://github.com/kinshuk18/rad-infra.git
+    targetRevision: main
+    path: infra/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cxr-edge-triage-prod
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

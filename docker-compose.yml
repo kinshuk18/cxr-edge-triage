@@ -1,0 +1,171 @@
+name: cxr-edge-triage
+services:
+  postgres:
+    image: postgres:16.6-alpine
+    environment:
+      POSTGRES_DB: rad
+      POSTGRES_USER: rad
+      POSTGRES_PASSWORD: rad_dev_password
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rad -d rad"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:4.0.5-management
+    environment:
+      RABBITMQ_DEFAULT_USER: rad
+      RABBITMQ_DEFAULT_PASS: rad_dev_password
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbit consumer_timeout 7200000"
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4.1-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  minio:
+    image: scnd/minio-mirror:RELEASE.2025-09-07T16-13-09Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/ready >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  bucket-init:
+    image: scnd/mc-mirror:RELEASE.2025-02-04T04-57-50Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 2; done
+        mc mb --ignore-existing local/cxr-raw
+        mc mb --ignore-existing local/cxr-results
+    restart: "no"
+
+  db-migrate:
+    image: rad-api:local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://rad:rad_dev_password@postgres:5432/rad
+    command: ["-m", "alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    image: rad-api:local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://rad:rad_dev_password@postgres:5432/rad
+      S3_ENDPOINT_URL: http://minio:9000
+      AMQP_URL: amqp://rad:rad_dev_password@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379/0
+      JWT_ISSUER: cxr-edge-triage-dev
+      JWT_AUDIENCE: rad-api
+      HMAC_SECRET: dev-only-change-this-hmac-secret-before-any-shared-use
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      bucket-init:
+        condition: service_completed_successfully
+      db-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/usr/bin/python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  relay:
+    image: rad-api:local
+    command: ["-m", "app.relay"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://rad:rad_dev_password@postgres:5432/rad
+      AMQP_URL: amqp://rad:rad_dev_password@rabbitmq:5672/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  worker:
+    image: rad-worker:cpu-local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker.cpu
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://rad:rad_dev_password@postgres:5432/rad
+      AMQP_URL: amqp://rad:rad_dev_password@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      MODEL_PATH: /app/models/model.pt
+    volumes:
+      - ./models:/app/models:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      bucket-init:
+        condition: service_completed_successfully
+      db-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:

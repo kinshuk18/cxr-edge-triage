@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rad-api
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rad-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rad-api
+    spec:
+      priorityClassName: clinical-api
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: ghcr.io/kinshuk18/rad-api:stable
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: rad-config
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rad-runtime-secrets
+                  key: DATABASE_URL
+            - name: JWT_PUBLIC_KEY_B64
+              valueFrom:
+                secretKeyRef:
+                  name: rad-runtime-secrets
+                  key: JWT_PUBLIC_KEY_B64
+            - name: HMAC_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: rad-runtime-secrets
+                  key: HMAC_SECRET
+            - name: S3_ENDPOINT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rad-runtime-secrets
+                  key: S3_ENDPOINT_URL
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: rad-runtime-secrets
+                  key: S3_ACCESS_KEY_ID
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rad-runtime-secrets
+                  key: S3_SECRET_ACCESS_KEY
+            - name: AMQP_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rad-runtime-secrets
+                  key: AMQP_URL
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/usr/bin/python3", "-c", "import time; time.sleep(5)"]
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes: []
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rad-api
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  selector:
+    app.kubernetes.io/name: rad-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: rad-api
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rad-api
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 30s

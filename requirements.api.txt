@@ -1,0 +1,13 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+asyncpg==0.30.0
+aio-pika==9.5.4
+boto3==1.35.90
+PyJWT[crypto]==2.10.1
+pydicom==3.0.1
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+prometheus-client==0.21.1
+alembic==1.14.0
+SQLAlchemy==2.0.36
+psycopg2-binary==2.9.10

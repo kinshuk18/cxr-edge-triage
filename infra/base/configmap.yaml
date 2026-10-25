@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rad-config
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  JWT_AUDIENCE: "rad-api"
+  JWT_ISSUER: "cxr-edge-triage"
+  S3_RAW_BUCKET: "cxr-raw"
+  S3_RESULTS_BUCKET: "cxr-results"
+  MAX_UPLOAD_BYTES: "50331648"
+  MAX_IMAGE_BYTES: "50331648"
+  MAX_ATTEMPTS: "4"
+  METRIC_SITE_ALLOWLIST: "dev-clinic"
+  MODEL_ID: "configured-model-id"
+  MODEL_VERSION: "configured-model-version"
+  WORKER_POLL_SECONDS: "0.25"
